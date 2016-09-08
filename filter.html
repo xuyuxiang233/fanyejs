@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<title>筛选分页组件</title>
+	</head>
+	<body>
+		<div class="filter"></div>
+		<div class="container">
+			<script type="text/html" class="tmpl">
+			</script>
+		</div>
+		<script src="./jquery@1.7.1.min.js"></script>
+		<script src="./arttemplate@3.0.0.min.js"></script>
+		<script>
+			$.extend({
+				_copy : function(origin){
+					var result;
+					if(typeof origin === "object"){
+						if(origin instanceof Array){
+							result = [];
+							for(var i = 0, len = origin.length; i < len; i++){
+								result[i] = this._copy(origin[i]);
+							}
+						}else{
+							result = {};
+							for(var i in origin){
+								result[i] = this._copy(origin[i]);
+							}
+						}
+					}else{
+						result = origin;
+					}
+					return result;
+				}
+			});
+			//筛选分页组件
+			$.fn.extend({
+				//初始化
+				DataGetter : function(option, data){//2、[]
+					this._createDOM();
+					this._setHandler();
+					this._index = option.index || 0;
+					this._size = option.size || 10;
+					this._data = $._copy(data);
+					this._render = option.render;
+					this._total = Math.ceil(this._data.length / this._size);
+					this._pagination(this._data);
+					return this;
+				},
+				//生成筛选排序分页器
+				_createDOM : function(){
+					this.html("<a class=\"priceUp\">价格升序</a>"
+						+ "<a class=\"priceDown\">价格降序</a>"
+						+ "<a class=\"saleUp\">销量升序</a>"
+						+ "<a class=\"saleDown\">销量降序</a>"
+						+ "<input type=\"text\" class=\"min\" placeholder=\"￥\" />"
+						+ "<input type=\"text\" class=\"max\" placeholder=\"￥\" />"
+						+ "<a class=\"sure\">确定</a>"
+						+ "<div class=\"pagination\">"
+						+ "<a class=\"previous\">&lt;</a>"
+						+ "<span class=\"current\"></span>"
+						+ "<em>|</em>"
+						+ "<span class=\"total\"></span>"
+						+ "<a class=\"next\">&gt;</a>"
+						+ "</div>");
+				},
+				//设置事件
+				_setHandler : function(){
+					var _this = this,
+						$min = $(".min"),
+						$max = $(".max"),
+						$pagination = $(".pagination");
+					$(".priceUp").click(function(){
+						_this._setOption({
+							priceSort : 1
+						});
+					});
+					$(".priceDown").click(function(){
+						_this._setOption({
+							priceSort : 2
+						});
+					});
+					$(".saleUp").click(function(){
+						_this._setOption({
+							soldSort : 1
+						});
+					});
+					$(".saleDown").click(function(){
+						_this._setOption({
+							soldSort : 2
+						});
+					});
+					$(".sure").click(function(){
+						_this._setOption({
+							priceLimit : [$min.val(), $max.val()]
+						});
+					});
+					$pagination.find(".previous").click(function(){
+						var index = _this._index;
+						index = index > 0 ? index - 1 : 0;
+						_this._index && _this._setOption({
+							index : index
+						});
+					});
+					$pagination.find(".next").click(function(){
+						var index = _this._index,
+							total = _this._total;
+						index = index < total ? index + 1 : total - 1;
+						_this._index === total - 1 || _this._setOption({
+							index : index
+						});
+					});
+				},
+				//排序方法
+				_sort : function(type, sortType){
+					var	i,
+						j,
+						temp,
+						data = this._data,
+						dataLen = data.length;
+					for(i = 0; i < dataLen; i++){
+						for(j = 0; j < dataLen - 1; j++){
+							if(sortType){
+								if(data[j][type] - 0 < data[j + 1][type] - 0){
+									temp = data[j + 1];
+									data[j + 1] = data[j];
+									data[j] = temp;
+								}
+							}else{
+								if(data[j][type] - 0 > data[j + 1][type] - 0){
+									temp = data[j + 1];
+									data[j + 1] = data[j];
+									data[j] = temp;
+								}
+							}
+						}
+					}
+					this.index = 0;
+					return data;
+				},
+				//区间方法
+				_limit : function(type, min, max){
+					var i,
+						data = this._data,
+						dataLen = data.length,
+						temp = [];
+					for(i = 0; i < dataLen; i++){
+						if(data[i][type] - 0 >= min - 0 && data[i][type] <= max - 0){
+							temp.push(data[i]);
+						}
+					}
+					this._index = 0;
+					this._total = Math.ceil(temp.length/ this._size);
+					return temp;
+				},
+				//分页方法
+				_pagination : function(data){
+					var i,
+						index = this._index,
+						size = this._size,
+						temp = [];
+					for(i = index * size; i < (index + 1) * size; i++){
+						data[i] && temp.push(data[i]);
+					}
+					this._render(temp);
+					$(".current").html(data.length ? this._index + 1 : 0);
+					$(".total").html(this._total);
+				},
+				//根据条件处理数据
+				_setOption : function(option){
+					if(option.priceSort){
+						this._priceSort = option.priceSort;
+						this._soldSort = 0;
+					}
+					if(option.soldSort){
+						this._soldSort = option.soldSort;
+						this._priceSort = 0;
+					}
+					if(option.priceLimit){
+						this._priceLimit = option.priceLimit;
+					}
+					var priceSort = this._priceSort,
+						soldSort = this._soldSort,
+						priceLimit = this._priceLimit,
+						index = option.index,
+						data;
+					if(priceSort){
+						data = this._sort("price", priceSort - 1);
+					}
+					if(soldSort){
+						data = this._sort("sold", soldSort - 1);
+					}
+					if(priceLimit && priceLimit.length){
+						data = this._limit("price", priceLimit[0] || 0, priceLimit[1] || Math.pow(10, 9));
+					}
+					if(typeof index === "number"){
+						this._index = option.index;
+						data = this._data;
+					}
+					this._pagination(data);
+				}
+			});
+			var $container = $(".container");
+			function render(data){//5、[]
+				$container.html(JSON.stringify(data));
+			}
+			$.ajax({
+				type : "get",
+				url : "http://www.ikindness.cn/api/test/getProduct",
+				success : function(data){//1、{data:[]}
+					$(".filter").DataGetter({
+						size : 7,
+						render : render
+					}, data.data);//4、[]
+				}
+			});
+		</script>
+	</body>
+</html>
+
